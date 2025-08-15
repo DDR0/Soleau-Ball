@@ -1,0 +1,65 @@
+<link rel=stylesheet href="./bolo-game.css"/>
+			
+<div screen id=about>
+	<div header></div>
+	
+	<div info>
+		<h1>BoloBall</h1>
+		<span>by DDR</span>
+		<hr>
+		<span>Version 0.1 (July 2025)</span>
+		<br>
+		<span>Thanks for playing!</span>
+	</div>
+	
+	<bolo-nav-bar>
+		<button nav=setup accesskey=b title="Access Key: b">Back</button>
+		<bolo-nav-spacer></bolo-nav-spacer>
+	</bolo-nav-bar>
+</div>
+
+<div screen id=setup>
+	<div header></div>
+	
+	<div options>
+		<label>Opponent: Computer <input opponent name="Opponent Type" type=range min=0 value=0 max=1 step=1> Human</label>
+		<span>
+			<label>Field Dimensions: <input field=x name="Board Width" type=number min=3 max=2000 step=1 value=29> tiles wide</label>
+			<label> by <input field=y name="Board Height" type=number min=7 max=2000 step=1 value=19> tiles tall</label>
+		</span>
+		<label>Rounds:&nbsp;<input rounds name="Rounds to Play" type=number min=1 step=1 value=2></label>
+		<label>Fullscreen:&nbsp;<input fullscreen name="Fullscreen" type=checkbox></label>
+	</div>
+	
+	<bolo-nav-bar>
+		<button nav=game accesskey=c title="Access Key: c">Cancel</button>
+		<bolo-nav-spacer></bolo-nav-spacer>
+		<button nav=about accesskey=a title="Access Key: a">About</button>
+		<bolo-nav-spacer></bolo-nav-spacer>
+		<button new-game accesskey=n title="Access Key: n">New Game</button>
+	</bolo-nav-bar>
+</div>
+
+<div screen id=game>
+	<bolo-nav-bar>
+		<span><span style="color:green;">➊</span> Green: <span score team=green>0</span> points</span>
+		<bolo-nav-spacer></bolo-nav-spacer>
+		<span>Round <span current-round>?</span>, Turn <span current-turn>?</span></span>
+		<bolo-nav-spacer></bolo-nav-spacer>
+		<span><span style="color:red;">➋</span> Red: <span score team=red>0</span> points</span>
+	</bolo-nav-bar>
+	<div playfield>
+		<canvas>error: canvas not available</canvas>
+	</div>
+	
+	<bolo-nav-bar>
+		<button move=left accesskey=h title="Key: h" style="flex:1">←</button>
+		<button move=right accesskey=l title="Key: l" style="flex:1">→</button>
+		<bolo-nav-spacer></bolo-nav-spacer>
+		<button nav=setup accesskey=s title="Access Key: s" short-content=⚙️>Set Up Game</button>
+		<bolo-nav-spacer></bolo-nav-spacer>
+		<button action=look title="Key: p" short-content=👁️>Peek</button>
+		<bolo-nav-spacer></bolo-nav-spacer>
+		<button move=bowl accesskey=j title="Key: j" style="flex:2">↓</button>
+	</bolo-nav-bar>		
+</div>

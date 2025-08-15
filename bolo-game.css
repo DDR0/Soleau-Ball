@@ -1,0 +1,115 @@
+@layer layout, theme-dark, theme-override;
+
+@layer layout {
+	
+	/* Hide inactive screens. */
+	[screen]:not([active]) {
+		display: none;
+	}
+	
+	[screen] {
+		height: 100%;
+		width: 100%;
+		
+		display: flex;
+		flex-direction: column;
+		overflow: hidden;
+	}
+	
+	/* Sort of center the content on these screens. */
+	#about, #setup {
+		align-items: stretch;
+		justify-content: space-between;
+		
+		[info], [options] {
+			max-width: fit-content;
+			align-self: center;
+		}
+		
+		[options] {
+			display: flex;
+    		flex-direction: column;
+    		
+    		label {
+    			display: flex;
+    		}
+    		
+    		/*Keep on one line.*/
+    		&>span {
+			    display: flex;
+			    white-space-collapse: preserve;
+    		}
+		}
+		
+		input[opponent] {
+			width: 2em;
+		}
+		
+		input[type="number"] {
+			width: 4em;
+		}
+		
+		input {
+			margin: 0.5em, 0
+		}
+	}
+		
+	[playfield] {
+		flex-grow: 1;
+		
+	    display: flex;
+		justify-content: stretch;
+	    align-items: stretch;
+	    
+		overflow: auto; /* Scroll playfield if needed. */
+		
+		canvas {
+			margin: auto;
+		}
+	}
+	
+	button {
+		touch-action: manipulation; /*Disable double-tap-to-zoom on buttons.*/
+	}
+	
+	@media only screen and (max-width: 400px) {	/*icon breakpoint*/
+		[short-content] {
+			font-size: 0;
+			&::after {
+				font-size: 1.25rem;
+				content: attr(short-content);
+			}
+		}
+	}
+}
+
+@layer theme-dark {
+	[screen] {
+		color: #DDD;
+		background: black;
+	}
+	
+	bolo-nav-bar {
+		border-top: 1em solid #000A;
+	}
+	
+	button {
+		flex: unset;
+		padding: min(0.5rem, 2.5vmin) min(1rem, 5vmin);
+		/*border: 2px ridge white;*/
+		
+		@media (pointer: coarse) {
+			padding: min(2rem, 2.5vmin) min(4rem, 5vmin);
+		}
+	}
+	
+	@media only screen and (max-width: 400px) {	/*icon breakpoint*/
+		[short-content] {
+			padding: min(0.5rem, 2.5vmin);
+		}
+	}
+	
+	canvas {
+		border: 4px ridge white;
+	}
+}
