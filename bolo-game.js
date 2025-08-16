@@ -1,5 +1,16 @@
+const resources = Object.freeze(new Map([
+	['game html', fetch('./bolo-game.html').then(response => response.text())],
+	['spritesheet', fetch('./spritesheet.webp').then(response => response.blob())],
+]))
+
+resources.set('spritesheet', 
+	await createImageBitmap(
+		await resources.get('spritesheet'),
+		{ premultiplyAlpha: 'premultiply' }
+	)
+)
+
 customElements.define('bolo-game', class BoloGameElement extends HTMLElement {
-	#html = fetch('./bolo-game.html').then(response => response.text())
 	#syncHashToScreen
 	#game
 	#keyDownHandler
@@ -22,7 +33,7 @@ customElements.define('bolo-game', class BoloGameElement extends HTMLElement {
 	async connectedCallback () {
 		const {$,$$} = this
 		
-		this.shadow.innerHTML = await this.#html
+		this.shadow.innerHTML = (await resources.get('game html')) || `<h1 style="color:indianred">Error loading game resources.</h1>`
 		
 		addEventListener('hashchange', this.#syncHashToScreen)
 		dispatchEvent(new HashChangeEvent("hashchange")) //Activate a game screen.
@@ -950,26 +961,31 @@ class Cell {
 	
 	type = Cell.types.empty
 	state = {}
+	variation = Math.random() //stable random number, used to determine which variant of the tile to draw, say for floors.
 	
 	draw(ctx) {
 		ctx.fillStyle = Cell.#colours.get(this.type)
 		ctx.fillRect(0,0,100,100)
 		
 		if (Cell.types.ramp === this.type) {
-			const direction = ['↑', '→', '↓', '←'][this.state.direction]
-			const measurements = ctx.measureText(direction)
-			const heightOffset = (measurements.actualBoundingBoxDescent - measurements.actualBoundingBoxAscent) / 2
-			//Call me when it's slow. 🙄
-			
-			ctx.fillStyle = "black"
-			ctx.fillText(direction, 50, 50 - heightOffset, 80)
+			ctx.drawImage(spritesheet.image, ...spritesheet[Cell.types.ramp][this.state.direction], ...defaultTarget)
+		}
+		
+		if ([Cell.types.empty, Cell.types.ball].includes(this.type)) {
+			const emptyTiles = spritesheet[Cell.types.empty]
+			const variation = Math.floor(this.variation*emptyTiles.length)
+			ctx.drawImage(spritesheet.image, ...spritesheet[Cell.types.empty][variation], ...defaultTarget)
+		}
+		
+		if (Cell.types.block === this.type) {
+			ctx.drawImage(spritesheet.image, ...spritesheet[Cell.types.block], ...defaultTarget)
 		}
 		
 		if (Cell.types.ball === this.type) {
 			drawBall(ctx, this.state.team, null, this.state.score)
 		}
 		
-		if ([Cell.types.bonus].includes(this.type)) {
+		if (Cell.types.bonus === this.type) {
 			const amount = this.state.score
 			const measurements = ctx.measureText(amount)
 			const heightOffset = (measurements.actualBoundingBoxDescent - measurements.actualBoundingBoxAscent) / 2
@@ -980,6 +996,38 @@ class Cell {
 	}
 }
 
+//Note: Must be after the definition of Cell, not before, or Board can't see Cell.
+//This seems to be because of `resources.get('spritesheet')` breaking it. But WHY‽
+const spritesheet = Object.freeze({
+	__proto__: null,
+	
+	image: resources.get('spritesheet'),
+	
+	[Cell.types.ball]: [
+		[16,16,16,16], //green
+		[32,16,16,16], //red
+	],
+	
+	[Cell.types.empty]: [
+		[0, 80, 16, 16], [16, 80, 16, 16], [32, 80, 16, 16],
+		[0, 96, 16, 16], [16, 96, 16, 16],
+	],
+	
+	[Cell.types.block]: [80,80,16,16],
+	
+	"wall shadow": [96, 48, 22, 22], //hello yes this is problems
+	"ball shadow": [51, 19, 16, 16], //And this is offset +3/+3.
+	
+	[Cell.types.ramp]: [
+		[ 64, 112, 16, 16], //unused but makes the math line up
+		[ 80, 112, 16, 16],
+		[ 96, 112, 16, 16],
+		[112, 112, 16, 16],
+	]
+})
+window.s = spritesheet
+
+const defaultTarget = Object.freeze([0,0,100,100])
 
 function drawBall(canvas, team, pos, text="") { //canvas is canvas *context* if pos is 0.
 	const ctx = pos ? canvas.getContext('2d') : canvas
@@ -991,12 +1039,7 @@ function drawBall(canvas, team, pos, text="") { //canvas is canvas *context* if 
 		ctx.scale(BoloGame.tileSize / 100, BoloGame.tileSize / 100) //Tile sizes are drawn from 0-100.
 	}
 	
-	ctx.fillStyle = "#333"
-	ctx.fillRect(0, 0, 100, 100)
-	ctx.fillStyle = team ? "red" : "green"
-	ctx.beginPath()
-	ctx.arc(50, 50, 48, 0, 2*Math.PI)
-	ctx.fill()
+	ctx.drawImage(spritesheet.image, ...spritesheet[Cell.types.ball][team], ...defaultTarget)
 	
 	if (text) {
 		const measurements = ctx.measureText(text)
