@@ -147,6 +147,33 @@ customElements.define('bolo-game', class BoloGameElement extends HTMLElement {
 			)
 		})
 		
+		//Mouse click to bowl. Not implemented for touch screens because I think it would be accident-prone.
+		const mousePositionBowler = ({offsetX:x, which}) => {
+			if (which !== 1) return;
+			
+			this.#game.dispatchEvent(
+				new CustomEvent("input", { detail: { 
+					command: 'moveTo',
+					column: x/BoloGame.tileSize|0,
+				}})
+			)
+		}
+		
+		const canvas = $(`canvas`)
+		canvas.addEventListener('mousedown', mousePositionBowler)
+		canvas.addEventListener('mousemove', mousePositionBowler)
+		canvas.addEventListener('mouseup', mousePositionBowler)
+		
+		canvas.addEventListener('mouseup', ({offsetX:x, which}) => {
+			if (which !== 1) return; //left-mouse-button-only, not middle, not a tap
+			
+			this.#game.dispatchEvent(
+				new CustomEvent("input", { detail: { 
+					command: 'bowl',
+				}})
+			)
+		})
+		
 		//Accesskey doesn't support arrow keys.
 		//evt.target, evt.composedPath() just resolve to this element, no further details.
 		this.#keyDownHandler = evt => {
@@ -447,7 +474,7 @@ class BoloGame extends EventTarget {
 			this.#drawBoard(this.#board, [col+y, 0])
 	}
 	
-	#handleInput({detail: {command, other}}) {
+	#handleInput({detail: {command, other, column}}) {
 		if (this.#isBowling) return //First, don't process any more input if we're still dealing with the last.
 		if (this.#currentTeam === 1 && this.#opponent === BoloGame.opponents.computer) return //Computer's got control right now.
 		
@@ -457,6 +484,11 @@ class BoloGame extends EventTarget {
 			const delta = (command[0]==='r')*2-1
 			const columns = this.#playerBalls[this.#currentTeam].length - 1
 			this.#playerColumn = constrain(0, this.#playerColumn+delta, columns)
+			this.#drawPlayer(this.#playerColumn, this.#currentTeam)
+			break;
+		case 'moveTo':
+			this.#clearPlayer(this.#playerColumn)
+			this.#playerColumn = column
 			this.#drawPlayer(this.#playerColumn, this.#currentTeam)
 			break;
 		case 'bowl':
