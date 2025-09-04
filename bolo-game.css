@@ -69,6 +69,7 @@
 	}
 	
 	button {
+		user-select: none; /*Disable button face text selection.*/
 		touch-action: manipulation; /*Disable double-tap-to-zoom on buttons.*/
 	}
 	
