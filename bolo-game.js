@@ -418,12 +418,15 @@ class BoloGame extends EventTarget {
 	#drawPlayer(col, team) {
 		if (this.#round > this.#rounds) return //Don't draw anyone post-game.
 		
+		for (const y of [-1, 0, 1])
+			this.#drawBoard(this.#board, [col+y, 0])
+		
 		const ctx = this.#canvas.getContext('2d')
 		
 		ctx.save()
 		ctx.translate(col * BoloGame.tileSize, 0) //Always on row 0.
 		ctx.scale(BoloGame.tileSize / 100, BoloGame.tileSize / 100)
-		ctx.clearRect(-100, 0, 300, 100) //Clear a little extra to the left and right to accomodate for movement.
+		ctx.translate(0, -10)
 		ctx.fillStyle = "lightgrey"
 		ctx.fillRect(10, 30, 80, 40)
 		ctx.fillStyle = team ? "red" : "green"
@@ -440,14 +443,8 @@ class BoloGame extends EventTarget {
 	}
 	
 	#clearPlayer(col) {
-		const ctx = this.#canvas.getContext('2d')
-		
-		const row = 0
-		ctx.save()
-		ctx.translate(col * BoloGame.tileSize, row * BoloGame.tileSize)
-		ctx.scale(BoloGame.tileSize / 100, BoloGame.tileSize / 100)
-		ctx.clearRect(-100, 0, 300, 100) //Clear a little extra to the left and right to accomodate for movement.
-		ctx.restore()
+		for (const y of [-1, 0, 1])
+			this.#drawBoard(this.#board, [col+y, 0])
 	}
 	
 	#handleInput({detail: {command, other}}) {
@@ -895,9 +892,14 @@ class Board {
 	#generateMap(board, {manyTeleporters=Math.random()<0.05}) {
 		this.#teleporters.clear()
 		
-		for (let y = 1; y < 3; y++)
-			for (let x = 0; x < board.width; x++)
-				board[[x,y]].type = Cell.types.empty
+		for (let x = 0; x < board.width; x++)
+			board[[x,0]].type = Cell.types.path
+		
+		for (let x = 0; x < board.width; x++)
+			board[[x,1]].type = Cell.types.rack
+		
+		for (let x = 0; x < board.width; x++)
+			board[[x,2]].type = Cell.types.empty
 		
 		for (let y = 3; y < board.height - 1; y++) {
 			for (let x = 0; x < board.width; x++) {
@@ -964,28 +966,31 @@ class Cell {
 		teleport: Symbol('Teleport Cell'),
 		ball: Symbol('Ball Cell'),
 		bonus: Symbol('Bonus Cell'),
+		path: Symbol('Path'),
+		rack: Symbol('Rack'),
 	})
 	
 	static floorTileTypes = Object.freeze(
 		new Set([Cell.types.empty, Cell.types.teleport, Cell.types.bonus])
 	)
 	
-	static #colours = Object.freeze(new Map([
-		[Cell.types.empty, "#333"],
-		[Cell.types.ball, "#333"], //draw bg for ball same colour as empty bg
-		[Cell.types.block, "#777"],
-		[Cell.types.ramp, "#07f"],
-		[Cell.types.teleport, "#f73"],
-		[Cell.types.bonus, "#fF3"],
-	]))
-	
 	type = Cell.types.empty
 	state = {}
 	variation = Math.random() //stable random number, used to determine which variant of the tile to draw, say for floors.
 	
 	draw(ctx, shadows={wall:{}, ball:{}}) {
-		ctx.fillStyle = Cell.#colours.get(this.type)
-		ctx.fillRect(0,0,100,100)
+		if (Cell.types.path === this.type) {
+			const tiles = spritesheet[Cell.types.path]
+			const variation = Math.floor(this.variation*tiles.length)
+			ctx.drawImage(spritesheet.image, ...tiles[variation], ...defaultTarget)
+			return
+		}
+		
+		if (Cell.types.rack === this.type) {
+			ctx.fillStyle = "#333"
+			ctx.fillRect(0, 0, 100, 100)
+			return
+		}
 		
 		if (Cell.types.ramp === this.type) {
 			ctx.drawImage(spritesheet.image, ...spritesheet[Cell.types.ramp][this.state.direction], ...defaultTarget)
@@ -998,11 +1003,11 @@ class Cell {
 		}
 		
 		if (Cell.types.teleport === this.type) {
-			const teleportTiles = spritesheet[Cell.types.teleport]
-			const startFrame = Math.floor(this.variation*teleportTiles.length)
+			const tiles = spritesheet[Cell.types.teleport]
+			const startFrame = Math.floor(this.variation*tiles.length)
 			const animFrame = Math.floor(performance.now() / animationFramerate)
-			const frame = (startFrame + animFrame) % teleportTiles.length
-			ctx.drawImage(spritesheet.image, ...teleportTiles[frame], ...defaultTarget)
+			const frame = (startFrame + animFrame) % tiles.length
+			ctx.drawImage(spritesheet.image, ...tiles[frame], ...defaultTarget)
 		}
 		
 		if (Cell.types.bonus === this.type) {
@@ -1016,9 +1021,9 @@ class Cell {
 		}
 		
 		if ([Cell.types.empty, Cell.types.ball].includes(this.type)) {
-			const emptyTiles = spritesheet[Cell.types.empty]
-			const variation = Math.floor(this.variation*emptyTiles.length)
-			ctx.drawImage(spritesheet.image, ...emptyTiles[variation], ...defaultTarget)
+			const tiles = spritesheet[Cell.types.empty]
+			const variation = Math.floor(this.variation*tiles.length)
+			ctx.drawImage(spritesheet.image, ...tiles[variation], ...defaultTarget)
 		}
 		
 		if (shadows.ball.left || shadows.ball.top) {
@@ -1077,6 +1082,11 @@ const spritesheet = Object.freeze({
 	[Cell.types.teleport]: Array.from({length:8}, (_, i) =>
 		[80+16*i,176,16,16]
 	),
+	
+	[Cell.types.path]: [
+		[80,208,16,16],
+		[96,208,16,16],
+	]
 })
 
 const defaultTarget = Object.freeze([0,0,100,100])
