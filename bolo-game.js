@@ -1,6 +1,8 @@
+const animationFramerate = 1000/4
+
 const resources = Object.freeze(new Map([
 	['game html', fetch('./bolo-game.html').then(response => response.text())],
-	['spritesheet', fetch('./spritesheet.webp').then(response => response.blob())],
+	['spritesheet', fetch('./spritesheet.png').then(response => response.blob())],
 ]))
 
 resources.set('spritesheet', 
@@ -236,7 +238,8 @@ class BoloGame extends EventTarget {
 	#playerColumn = 0
 	#playerBalls = [[],[]]
 	#playerScore
-	#animations = new Set() //`setTimeout` handles.
+	#timeouts = new Set() //`setTimeout` handles.
+	#intervals = new Set()
 	#isBowling = false
 	
 	constructor({canvas}) {
@@ -251,7 +254,10 @@ class BoloGame extends EventTarget {
 		size: {x=29,y=18}={}, 
 		rounds=1
 	}={}) {
-		for (const handle in this.#animations) cancelTimeout(handle)
+		for (const handle in this.#timeouts) cancelTimeout(handle)
+		for (const handle in this.#intervals) cancelInterval(handle)
+		this.#timeouts.clear()
+		this.#intervals.clear()
 		
 		this.#opponent = opponent
 		this.#board = new Board(x,y)
@@ -322,6 +328,12 @@ class BoloGame extends EventTarget {
 		this.#drawBalls(this.#playerBalls, this.#currentTeam)
 		this.#drawPlayer(this.#playerColumn, this.#currentTeam)
 		
+		for (const pos of this.#board.getTeleporterTiles()) {
+			this.#repeat(animationFramerate, function*() {
+				yield this.#drawBoard(this.#board, pos)
+			}.bind(this))
+		}
+		
 		//Kick off AI turn if it should go first.
 		if (this.#currentTeam === 1 && BoloGame.opponents.computer === opponent) {
 			await this.#sleep(2000)
@@ -330,7 +342,7 @@ class BoloGame extends EventTarget {
 	}
 	
 	teardown() {
-		for (const handle in this.#animations) cancelTimeout(handle)
+		for (const handle in this.#timeouts) cancelTimeout(handle)
 	}
 
 	get #round() {
@@ -792,11 +804,26 @@ class BoloGame extends EventTarget {
 	}
 	
 	
+	//async, must be awaited
 	#sleep(ms) {
 		return new Promise(resolve => {
 			const handle = setTimeout(()=>resolve(handle), ms)
-			this.#animations.add(handle)
-		}).then(handle=>this.#animations.delete(handle))
+			this.#timeouts.add(handle)
+		}).then(handle=>this.#timeouts.delete(handle))
+	}
+	
+	//non-async, takes an iterable
+	#repeat(ms, iter) {
+		const step = ()=>{
+			if(iter().next().done) {
+				this.#intervals.remove(handle)
+			}
+		}
+		
+		const handle = setInterval(step, ms)
+		this.#intervals.add(handle)
+		step()
+		return handle
 	}
 	
 	
@@ -830,22 +857,30 @@ class BoloGame extends EventTarget {
 
 
 class Board {
+	#teleporters = new Set()
+	
 	constructor(width, height) {
+		const outOfBoundsCell = new Cell()
+		outOfBoundsCell.type = Cell.types.block
+		Object.freeze(outOfBoundsCell)
+		Object.freeze(outOfBoundsCell.state)
+		const board = this
+		
 		return new Proxy([], {
 			get(target, prop, rec) {
 				if (prop == "undefined") return undefined
 				
 				if (prop == "width") return width
 				if (prop == "height") return height
-				if (prop == "generateMap") return params => Board.#generateMap(rec, params)
-				if (prop == "getTeleporterTiles") return () => Board.#getTeleporterTiles(rec)
+				if (prop == "generateMap") return (params={}) => board.#generateMap(rec, params)
+				if (prop == "getTeleporterTiles") return () => board.#getTeleporterTiles(rec)
 				if (prop == "map") return cb => target.map((row, r)=>row.map((tile, c) => cb(tile, r, c, rec)))
 				if (prop == "forEach") return cb => target.forEach((row, r)=>row.forEach((tile, c) => cb(tile, r, c, rec)))
 				
 				const [x,y] = prop.split(',').map(c=>parseInt(c, 10))
 				
-				if (x < 0 || x >= width) return;
-				if (y < 0 || y >= height) return;
+				if (x < 0 || x >= width) return outOfBoundsCell;
+				if (y < 0 || y >= height) return outOfBoundsCell;
 				
 				let row = target[y]
 				if (!row) row = target[y] = []
@@ -857,7 +892,9 @@ class Board {
 		})
 	}
 	
-	static #generateMap(board, params={}) {
+	#generateMap(board, {manyTeleporters=Math.random()<0.05}) {
+		this.#teleporters.clear()
+		
 		for (let y = 1; y < 3; y++)
 			for (let x = 0; x < board.width; x++)
 				board[[x,y]].type = Cell.types.empty
@@ -865,6 +902,11 @@ class Board {
 		for (let y = 3; y < board.height - 1; y++) {
 			for (let x = 0; x < board.width; x++) {
 				const chance = Math.random()
+				if (chance < (manyTeleporters ? 0.04 : 0.01)) {
+					board[[x,y]].type = Cell.types.teleport
+					this.#teleporters.add([x,y])
+					continue
+				}
 				if (chance < 0.8) {
 					board[[x,y]].type = Cell.types.empty
 					continue
@@ -889,26 +931,6 @@ class Board {
 		for (let x = 0; x < board.width; x++)
 			board[[x,board.height-1]].type = Cell.types.empty
 		
-		//Add in a number of teleporters.
-		//Usually 2 or 3, but sometimes many.
-		const numTeleporters = board.width <= 12
-			? Math.random() < 0.5 ? 2 : 3
-			: Math.floor(Math.random() * 2)
-				+ constrain(2, Math.floor((Math.random()+Math.random()+Math.random())*5 - 5), Infinity)
-		
-		const teleporters = new Set()
-		for (let i = 0; i < numTeleporters; i++) {
-			const pos = [
-				Math.floor(Math.random() * board.width),
-				Math.floor(Math.random() * (board.height-7))+5
-			]
-			if (teleporters.has(pos)) {
-				i--
-				continue
-			}
-			board[pos].type = Cell.types.teleport
-		}
-		
 		scan: for (let x = 0; x < board.width; x++) {
 			for (var y = 3; y < board.height - 1; y++) {
 				if (![Cell.types.empty, Cell.types.bonus].includes(board[[x,y]].type))
@@ -922,17 +944,15 @@ class Board {
 		return board
 	}
 	
-	static #getTeleporterTiles(board) {
-		const tiles = new Set()
-		for (let y = 3; y < board.height - 1; y++) {
-			for (let x = 0; x < board.width; x++) {
-				const pos = [x,y]
-				if (board[pos].type === Cell.types.teleport) {
-					tiles.add(pos)
-				}
+	#getTeleporterTiles(board) {
+		//Scan to make sure all teleporters are actually still alive - a ball could have landed on one and overwritten it if it couldn't move.
+		for (const pos of this.#teleporters) {
+			if (board[pos].type !== Cell.types.teleport) {
+				this.#teleporters.delete(pos)
 			}
 		}
-		return tiles
+		
+		return new Set(this.#teleporters) //return a copy so we can't muck up internal state by mutating the original
 	}
 }
 
@@ -963,36 +983,60 @@ class Cell {
 	state = {}
 	variation = Math.random() //stable random number, used to determine which variant of the tile to draw, say for floors.
 	
-	draw(ctx) {
+	draw(ctx, shadows={wall:{}, ball:{}}) {
 		ctx.fillStyle = Cell.#colours.get(this.type)
 		ctx.fillRect(0,0,100,100)
 		
 		if (Cell.types.ramp === this.type) {
 			ctx.drawImage(spritesheet.image, ...spritesheet[Cell.types.ramp][this.state.direction], ...defaultTarget)
-		}
-		
-		if ([Cell.types.empty, Cell.types.ball].includes(this.type)) {
-			const emptyTiles = spritesheet[Cell.types.empty]
-			const variation = Math.floor(this.variation*emptyTiles.length)
-			ctx.drawImage(spritesheet.image, ...spritesheet[Cell.types.empty][variation], ...defaultTarget)
+			return //Block not shadowed.
 		}
 		
 		if (Cell.types.block === this.type) {
 			ctx.drawImage(spritesheet.image, ...spritesheet[Cell.types.block], ...defaultTarget)
+			return //Block not shadowed.
 		}
 		
-		if (Cell.types.ball === this.type) {
-			drawBall(ctx, this.state.team, null, this.state.score)
+		if (Cell.types.teleport === this.type) {
+			const teleportTiles = spritesheet[Cell.types.teleport]
+			const startFrame = Math.floor(this.variation*teleportTiles.length)
+			const animFrame = Math.floor(performance.now() / animationFramerate)
+			const frame = (startFrame + animFrame) % teleportTiles.length
+			ctx.drawImage(spritesheet.image, ...teleportTiles[frame], ...defaultTarget)
 		}
 		
 		if (Cell.types.bonus === this.type) {
 			const amount = this.state.score
 			const measurements = ctx.measureText(amount)
 			const heightOffset = (measurements.actualBoundingBoxDescent - measurements.actualBoundingBoxAscent) / 2
+			ctx.drawImage(spritesheet.image, ...spritesheet[Cell.types.bonus], ...defaultTarget)
 			ctx.fillStyle = "black"
 			ctx.font = "normal 40pt sans-serif"
 			ctx.fillText(amount, 50, 50 - heightOffset, 80)
 		}
+		
+		if ([Cell.types.empty, Cell.types.ball].includes(this.type)) {
+			const emptyTiles = spritesheet[Cell.types.empty]
+			const variation = Math.floor(this.variation*emptyTiles.length)
+			ctx.drawImage(spritesheet.image, ...emptyTiles[variation], ...defaultTarget)
+		}
+		
+		if (shadows.ball.left || shadows.ball.top) {
+			
+		}
+		
+		if (shadows.wall.top || shadows.wall.left || shadows.wall.corner) {
+			ctx.drawImage(spritesheet.image, ...[
+				96 + (shadows.wall.left + shadows.wall.corner*2)*16,
+				48 + shadows.wall.top*16,
+			], ...defaultTarget)
+		}
+		
+		if (Cell.types.ball === this.type) {
+			drawBall(ctx, this.state.team, null, this.state.score)
+		}
+		
+		
 	}
 }
 
@@ -1004,9 +1048,15 @@ const spritesheet = Object.freeze({
 	image: resources.get('spritesheet'),
 	
 	[Cell.types.ball]: [
-		[16,16,16,16], //green
+		[16,16,16,16], //blue
 		[32,16,16,16], //red
 	],
+	
+	"ball shadow": [48, 16, 16, 16],
+	"ball shadow left fringe": [64, 16, 16, 16],
+	"ball shadow top fringe": [48, 32, 16, 16],
+	
+	//"wall shadow" is custom, but starts at [96,48].
 	
 	[Cell.types.empty]: [
 		[0, 80, 16, 16], [16, 80, 16, 16], [32, 80, 16, 16],
@@ -1015,17 +1065,19 @@ const spritesheet = Object.freeze({
 	
 	[Cell.types.block]: [80,80,16,16],
 	
-	"wall shadow": [96, 48, 22, 22], //hello yes this is problems
-	"ball shadow": [51, 19, 16, 16], //And this is offset +3/+3.
-	
 	[Cell.types.ramp]: [
 		[ 64, 112, 16, 16], //unused but makes the math line up
 		[ 80, 112, 16, 16],
 		[ 96, 112, 16, 16],
 		[112, 112, 16, 16],
-	]
+	],
+	
+	[Cell.types.bonus]: [80,144,16,16],
+	
+	[Cell.types.teleport]: Array.from({length:8}, (_, i) =>
+		[80+16*i,176,16,16]
+	),
 })
-window.s = spritesheet
 
 const defaultTarget = Object.freeze([0,0,100,100])
 
@@ -1039,6 +1091,7 @@ function drawBall(canvas, team, pos, text="") { //canvas is canvas *context* if 
 		ctx.scale(BoloGame.tileSize / 100, BoloGame.tileSize / 100) //Tile sizes are drawn from 0-100.
 	}
 	
+	ctx.drawImage(spritesheet.image, ...spritesheet["ball shadow"], ...defaultTarget)
 	ctx.drawImage(spritesheet.image, ...spritesheet[Cell.types.ball][team], ...defaultTarget)
 	
 	if (text) {
