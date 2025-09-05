@@ -573,7 +573,7 @@ class BoloGame extends EventTarget {
 			}
 			return
 		}
-		alert(`No moves possible for ${this.#currentTeam ? "red" : "green"}.`)
+		alert(`No moves possible for ${this.#currentTeam ? "red" : "blue"}.`)
 		
 		//Otherwise, return input to the previous player to play out their hand.
 		this.#clearPlayer(this.#playerColumn)
@@ -647,7 +647,7 @@ class BoloGame extends EventTarget {
 			alert(`Game over!\n${{
 				"-1": `Red team wins!`,
 				"0": `It's a tie! Good game.`,
-				"1": `Green team wins!`,
+				"1": `Blue team wins!`,
 			}[Math.sign(this.#playerScore[0] - this.#playerScore[1])]}`)
 			return
 		}
