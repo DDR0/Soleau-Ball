@@ -4,7 +4,6 @@ html {
 
 body {
 	margin: 0;
-	background-color: black;
 	width: 100vw;
 	height: 100vh;
 	overflow: hidden;
@@ -17,6 +16,4 @@ bolo-game {
 	width: 100vw;
 	height: 100%;
 	height: 100dvh;
-	
-	border: 1em solid black;
 }

@@ -148,7 +148,8 @@ customElements.define('bolo-game', class BoloGameElement extends HTMLElement {
 		})
 		
 		//Mouse click to bowl. Not implemented for touch screens because I think it would be accident-prone.
-		const mousePositionBowler = ({offsetX:x, which}) => {
+		const mousePositionBowler = ({offsetX:x, which, evt...}) => {
+			debugger
 			if (which !== 1) return;
 			
 			this.#game.dispatchEvent(
@@ -340,6 +341,7 @@ class BoloGame extends EventTarget {
 		ctx.textAlign = "center"
 		ctx.textBaseline = "middle"
 		ctx.fillRect(0, 0, canvas.width, canvas.height)
+		ctx.imageSmoothingEnabled = false;
 		
 		//Generate playfield.
 		this.#board.generateMap()
@@ -406,24 +408,34 @@ class BoloGame extends EventTarget {
 	#drawFullBoard(board) {
 		const ctx = this.#canvas.getContext('2d')
 		
-		board.forEach((cell, row, col) => {
+		board.forEach((cell, y, x) => {
 			ctx.save()
-			ctx.translate(col * BoloGame.tileSize, row * BoloGame.tileSize)
+			ctx.translate(x * BoloGame.tileSize, y * BoloGame.tileSize)
 			ctx.scale(BoloGame.tileSize / 100, BoloGame.tileSize / 100) //Tile sizes are drawn from 0-100.
-			cell.draw(ctx)
+			cell.draw(ctx, this.#getShadowsAt(board, [x,y]))
 			ctx.restore()
 		})
 	}
 	
-	#drawBoard(board, pos) {
+	#drawBoard(board, [x,y]) {
 		const ctx = this.#canvas.getContext('2d')
 		
 		ctx.save()
-		ctx.translate(pos[0] * BoloGame.tileSize, pos[1] * BoloGame.tileSize)
+		ctx.translate(x * BoloGame.tileSize, y * BoloGame.tileSize)
 		ctx.scale(BoloGame.tileSize / 100, BoloGame.tileSize / 100) //Tile sizes are drawn from 0-100.
-		board[pos].draw(ctx)
+		board[[x,y]].draw(ctx, this.#getShadowsAt(board, [x,y]))
 		ctx.restore()
 	}
+	
+	#getShadowsAt = (board, [x,y]) => ({
+		wall: {
+			top: Cell.wallShadowCasters.has(board[[x, y-1]].type),
+			left: Cell.wallShadowCasters.has(board[[x-1, y]].type),
+			corner: Cell.wallShadowCasters.has(board[[x-1, y-1]].type),
+		},
+		ball: {
+		},
+	})
 	
 	#drawBalls(balls, team) {
 		const ctx = this.#canvas.getContext('2d')
@@ -456,7 +468,7 @@ class BoloGame extends EventTarget {
 		ctx.translate(0, -10)
 		ctx.fillStyle = "lightgrey"
 		ctx.fillRect(10, 30, 80, 40)
-		ctx.fillStyle = team ? "red" : "green"
+		ctx.fillStyle = team ? "orangered" : "blue"
 		ctx.beginPath()
 		ctx.arc(50, 70, 20, 0, 2*Math.PI)
 		ctx.fill()
@@ -1006,6 +1018,10 @@ class Cell {
 		new Set([Cell.types.empty, Cell.types.teleport, Cell.types.bonus])
 	)
 	
+	static wallShadowCasters = Object.freeze(
+		new Set([Cell.types.block, Cell.types.ramp, Cell.types.rack])
+	)
+	
 	type = Cell.types.empty
 	state = {}
 	variation = Math.random() //stable random number, used to determine which variant of the tile to draw, say for floors.
@@ -1059,13 +1075,16 @@ class Cell {
 		}
 		
 		if (shadows.ball.left || shadows.ball.top) {
-			
+			console.error('TODO')
+			debugger
 		}
 		
 		if (shadows.wall.top || shadows.wall.left || shadows.wall.corner) {
 			ctx.drawImage(spritesheet.image, ...[
 				96 + (shadows.wall.left + shadows.wall.corner*2)*16,
 				48 + shadows.wall.top*16,
+				16,
+				16,
 			], ...defaultTarget)
 		}
 		
