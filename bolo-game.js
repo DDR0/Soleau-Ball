@@ -147,7 +147,7 @@ customElements.define('bolo-game', class BoloGameElement extends HTMLElement {
 			)
 		})
 		
-		//Mouse click to bowl. Not implemented for touch screens because I think it would be accident-prone.
+		const canvas = $(`canvas`)
 		const mousePositionBowler = ({offsetX:x, buttons}) => {
 			if (buttons !== 1) return
 			
@@ -158,13 +158,11 @@ customElements.define('bolo-game', class BoloGameElement extends HTMLElement {
 				}})
 			)
 		}
+		canvas.addEventListener('pointerdown', mousePositionBowler)
+		canvas.addEventListener('pointermove', mousePositionBowler)
+		canvas.addEventListener('pointerup', mousePositionBowler)
 		
-		const canvas = $(`canvas`)
-		canvas.addEventListener('mousedown', mousePositionBowler)
-		canvas.addEventListener('mousemove', mousePositionBowler)
-		canvas.addEventListener('mouseup', mousePositionBowler)
-		
-		canvas.addEventListener('mouseup', ({offsetX:x, which}) => {
+		canvas.addEventListener('pointerup', ({offsetX:x, which}) => {
 			if (which !== 1) return; //left-mouse-button-only, not middle, not a tap
 			
 			this.#game.dispatchEvent(
