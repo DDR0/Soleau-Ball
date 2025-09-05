@@ -148,9 +148,8 @@ customElements.define('bolo-game', class BoloGameElement extends HTMLElement {
 		})
 		
 		//Mouse click to bowl. Not implemented for touch screens because I think it would be accident-prone.
-		const mousePositionBowler = ({offsetX:x, which, evt...}) => {
-			debugger
-			if (which !== 1) return;
+		const mousePositionBowler = ({offsetX:x, buttons}) => {
+			if (buttons !== 1) return
 			
 			this.#game.dispatchEvent(
 				new CustomEvent("input", { detail: { 
