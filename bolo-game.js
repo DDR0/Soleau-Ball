@@ -513,7 +513,12 @@ class BoloGame extends EventTarget {
 	
 	async #bowl() {
 		const board = this.#board
-		const drawBoard = this.#drawBoard.bind(this, this.#board)
+		const drawBoard = ([x,y])=>{
+			this.#drawBoard(this.#board, [x+0,y+0]); if (y >= 2) //don't over-draw the balls in the rack
+			this.#drawBoard(this.#board, [x+1,y+0])
+			this.#drawBoard(this.#board, [x+0,y+1])
+			this.#drawBoard(this.#board, [x+1,y+1])
+		}
 		const sleep = this.#sleep.bind(this)
 		
 		const ballPause = 250
