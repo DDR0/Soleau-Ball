@@ -282,8 +282,8 @@ class BoloGame extends EventTarget {
 		size: {x=29,y=18}={}, 
 		rounds=1
 	}={}) {
-		for (const handle in this.#timeouts) cancelTimeout(handle)
-		for (const handle in this.#intervals) cancelInterval(handle)
+		for (const handle of this.#timeouts) clearTimeout(handle)
+		for (const handle of this.#intervals) clearInterval(handle)
 		this.#timeouts.clear()
 		this.#intervals.clear()
 		
