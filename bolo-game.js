@@ -1,4 +1,7 @@
 const animationFramerate = 1000/4
+const debug = Object.freeze({
+	paint: !!1,
+})
 
 const resources = Object.freeze(new Map([
 	['game html', fetch('./bolo-game.html').then(response => response.text())],
@@ -1033,67 +1036,69 @@ class Cell {
 			const tiles = spritesheet[Cell.types.path]
 			const variation = Math.floor(this.variation*tiles.length)
 			ctx.drawImage(spritesheet.image, ...tiles[variation], ...defaultTarget)
-			return
 		}
 		
-		if (Cell.types.rack === this.type) {
+		else if (Cell.types.rack === this.type) {
 			ctx.fillStyle = "#333"
 			ctx.fillRect(0, 0, 100, 100)
-			return
 		}
 		
-		if (Cell.types.ramp === this.type) {
+		else if (Cell.types.ramp === this.type) {
 			ctx.drawImage(spritesheet.image, ...spritesheet[Cell.types.ramp][this.state.direction], ...defaultTarget)
-			return //Block not shadowed.
 		}
 		
-		if (Cell.types.block === this.type) {
+		else if (Cell.types.block === this.type) {
 			ctx.drawImage(spritesheet.image, ...spritesheet[Cell.types.block], ...defaultTarget)
-			return //Block not shadowed.
 		}
 		
-		if (Cell.types.teleport === this.type) {
-			const tiles = spritesheet[Cell.types.teleport]
-			const startFrame = Math.floor(this.variation*tiles.length)
-			const animFrame = Math.floor(performance.now() / animationFramerate)
-			const frame = (startFrame + animFrame) % tiles.length
-			ctx.drawImage(spritesheet.image, ...tiles[frame], ...defaultTarget)
+		else {
+			if (Cell.types.teleport === this.type) {
+				const tiles = spritesheet[Cell.types.teleport]
+				const startFrame = Math.floor(this.variation*tiles.length)
+				const animFrame = Math.floor(performance.now() / animationFramerate)
+				const frame = (startFrame + animFrame) % tiles.length
+				ctx.drawImage(spritesheet.image, ...tiles[frame], ...defaultTarget)
+			}
+			
+			else if (Cell.types.bonus === this.type) {
+				const amount = this.state.score
+				const measurements = ctx.measureText(amount)
+				const heightOffset = (measurements.actualBoundingBoxDescent - measurements.actualBoundingBoxAscent) / 2
+				ctx.drawImage(spritesheet.image, ...spritesheet[Cell.types.bonus], ...defaultTarget)
+				ctx.fillStyle = "black"
+				ctx.font = "normal 40pt sans-serif"
+				ctx.fillText(amount, 50, 50 - heightOffset, 80)
+			}
+			
+			else if ([Cell.types.empty, Cell.types.ball].includes(this.type)) {
+				const tiles = spritesheet[Cell.types.empty]
+				const variation = Math.floor(this.variation*tiles.length)
+				ctx.drawImage(spritesheet.image, ...tiles[variation], ...defaultTarget)
+			}
+			
+			if (shadows.ball.left || shadows.ball.top) {
+				console.error('TODO: Issue #2.')
+				debugger
+			}
+			
+			if (shadows.wall.top || shadows.wall.left || shadows.wall.corner) {
+				ctx.drawImage(spritesheet.image, ...[
+					96 + (shadows.wall.left + shadows.wall.corner*2)*16,
+					48 + shadows.wall.top*16,
+					16,
+					16,
+				], ...defaultTarget)
+			}
+			
+			if (Cell.types.ball === this.type) {
+				drawBall(ctx, this.state.team, null, this.state.score)
+			}
 		}
 		
-		if (Cell.types.bonus === this.type) {
-			const amount = this.state.score
-			const measurements = ctx.measureText(amount)
-			const heightOffset = (measurements.actualBoundingBoxDescent - measurements.actualBoundingBoxAscent) / 2
-			ctx.drawImage(spritesheet.image, ...spritesheet[Cell.types.bonus], ...defaultTarget)
-			ctx.fillStyle = "black"
-			ctx.font = "normal 40pt sans-serif"
-			ctx.fillText(amount, 50, 50 - heightOffset, 80)
+		if (debug.paint) {
+			ctx.fillStyle = `oklch(0.7368 0.1739 ${Math.random()*360} / 32.24%)`
+			ctx.fillRect(0,0,100,100)
 		}
-		
-		if ([Cell.types.empty, Cell.types.ball].includes(this.type)) {
-			const tiles = spritesheet[Cell.types.empty]
-			const variation = Math.floor(this.variation*tiles.length)
-			ctx.drawImage(spritesheet.image, ...tiles[variation], ...defaultTarget)
-		}
-		
-		if (shadows.ball.left || shadows.ball.top) {
-			console.error('TODO')
-			debugger
-		}
-		
-		if (shadows.wall.top || shadows.wall.left || shadows.wall.corner) {
-			ctx.drawImage(spritesheet.image, ...[
-				96 + (shadows.wall.left + shadows.wall.corner*2)*16,
-				48 + shadows.wall.top*16,
-				16,
-				16,
-			], ...defaultTarget)
-		}
-		
-		if (Cell.types.ball === this.type) {
-			drawBall(ctx, this.state.team, null, this.state.score)
-		}
-		
 		
 	}
 }
@@ -1156,6 +1161,13 @@ function drawBall(canvas, team, pos, text="") { //canvas is canvas *context* if 
 	
 	ctx.drawImage(spritesheet.image, ...spritesheet["ball shadow"], ...defaultTarget)
 	ctx.drawImage(spritesheet.image, ...spritesheet[Cell.types.ball][team], ...defaultTarget)
+	
+	if (debug.paint) {
+		ctx.beginPath();
+		ctx.arc(50, 50, 25, 0, 2 * Math.PI); //centerX, centerY, radius, startAngle, endAngle
+		ctx.fillStyle = `oklch(0.6685 0.2405 ${Math.random()*360} / 89.62%)`
+		ctx.fill();   // Optional: fills the circle
+	}
 	
 	if (text) {
 		const measurements = ctx.measureText(text)
