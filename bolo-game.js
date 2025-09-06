@@ -209,8 +209,8 @@ customElements.define('bolo-game', class BoloGameElement extends HTMLElement {
 		})
 		
 		const canvas = $(`canvas`)
-		const mousePositionBowler = ({offsetX:x, buttons}) => {
-			if (buttons !== 1) return
+		const mousePositionBowler = ({offsetX:x, button}) => {
+			if (button !== 0) return
 			
 			this.#game.dispatchEvent(
 				new CustomEvent("input", { detail: { 
