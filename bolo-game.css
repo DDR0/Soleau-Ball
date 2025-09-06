@@ -67,6 +67,8 @@
 		overflow: auto; /* Scroll playfield if needed. */
 		overscroll-behavior: contain; /* Disable mobile browser pull-to-refresh when panning playfield. */
 		
+		margin: 1em 0;
+		
 		canvas {
 			margin: auto;
 		}
@@ -92,10 +94,6 @@
 	[screen] {
 		color: #DDD;
 		background: black;
-	}
-	
-	bolo-nav-bar {
-		border-top: 1em solid #000A;
 	}
 	
 	button {
