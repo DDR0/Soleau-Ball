@@ -154,8 +154,10 @@ customElements.define('bolo-game', class BoloGameElement extends HTMLElement {
 		})
 		
 		let moveTimeoutHandle = 0;
-		['left', 'right', 'bowl'].forEach(move =>
-			$(`[move="${move}"]`).addEventListener('pointerdown', evt => {
+		['left', 'right', 'bowl'].forEach(move => {
+			const button = $(`[move="${move}"]`)
+			
+			button.addEventListener('pointerdown', evt => {
 				const target = evt.target //Save target for use in the callback.
 				evt.preventDefault()
 				this.#game.dispatchEvent(
@@ -175,7 +177,16 @@ customElements.define('bolo-game', class BoloGameElement extends HTMLElement {
 				}
 				moveTimeoutHandle = setTimeout(repeat, 300)
 			})
-		)
+			
+			button.addEventListener('click', evt => {
+				if (evt.pointerId < 0) //is keyboard input, which doesn't trigger pointerdown
+					this.#game.dispatchEvent(
+						new CustomEvent("input", { detail: { 
+							command: evt.target.getAttribute('move'),
+						}})
+					)
+			})
+		})
 		
 		const look = $(`[action="look"]`)
 		look.addEventListener(`pointerdown`, evt => {
@@ -225,28 +236,32 @@ customElements.define('bolo-game', class BoloGameElement extends HTMLElement {
 		//Accesskey doesn't support arrow keys.
 		//evt.target, evt.composedPath() just resolve to this element, no further details.
 		this.#keyDownHandler = evt => {
-			//console.log(`Key Down: ${evt.code}, Repeat? ${evt.repeat}, ${evt.target}, ${evt.composedPath()}`, evt);
-			
 			//Ignore anything with modifiers.
-			if (evt.altKey || evt.altKey || event.shiftKey || event.metaKey) return
+			if (evt.ctrlKey || evt.altKey || event.shiftKey || event.metaKey) return
 			
-			if (['KeyH', 'ArrowLeft'].includes(evt.code))
+			if (['KeyH', 'ArrowLeft'].includes(evt.code)) {
 				this.#game.dispatchEvent(new CustomEvent('input', { detail: { 
 					command: 'left',
 				}}))
-			if (['KeyL', 'ArrowRight'].includes(evt.code))
+				evt.preventDefault()
+			}
+			if (['KeyL', 'ArrowRight'].includes(evt.code)) {
 				this.#game.dispatchEvent(new CustomEvent('input', { detail: { 
 					command: 'right',
 				}}))
+				evt.preventDefault()
+			}
 			if (//Ignore enter/space if doing keyboard navigation, since they click the button.
 				(this.shadow.activeElement instanceof HTMLButtonElement
 					? ['KeyJ', 'ArrowDown']
 					: ['KeyJ', 'ArrowDown', 'Space', 'Enter']
 				).includes(evt.code) && evt.repeat === false
-			)
+			) {
 				this.#game.dispatchEvent(new CustomEvent('input', { detail: { 
 					command: 'bowl',
 				}}))
+				evt.preventDefault()
+			}
 			if (['KeyP'].includes(evt.code) && evt.repeat === false)
 				this.#game.dispatchEvent(new CustomEvent('input', { detail: { 
 					command: 'look',
@@ -254,8 +269,6 @@ customElements.define('bolo-game', class BoloGameElement extends HTMLElement {
 				}}))
 		}
 		this.#keyUpHandler = evt => {
-			//console.log(`Key Up: ${evt.code}, Repeat? ${evt.repeat}`, evt);
-			
 			if (['KeyP'].includes(evt.code) && evt.repeat === false)
 				this.#game.dispatchEvent(new CustomEvent('input', { detail: { 
 					command: 'look',
