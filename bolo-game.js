@@ -173,7 +173,7 @@ customElements.define('bolo-game', class BoloGameElement extends HTMLElement {
 							command: target.getAttribute('move'),
 						}})
 					)
-					moveTimeoutHandle = setTimeout(repeat, 150)
+					moveTimeoutHandle = setTimeout(repeat, 100)
 				}
 				moveTimeoutHandle = setTimeout(repeat, 300)
 			})
@@ -313,7 +313,7 @@ class BoloGame extends EventTarget {
 		computer: Symbol('Computer Opponent'),
 	})
 	
-	static tileSize = 20;
+	static tileSize = 20; //zoom
 	
 	#opponent
 	#_turn
@@ -357,6 +357,7 @@ class BoloGame extends EventTarget {
 		this.#playerScore = (boloGame => {
 			const scores = [0,0]
 			return {
+				__proto__: null,
 				get 0() { return scores[0] },
 				set 0(score) {
 					boloGame.dispatchEvent(new CustomEvent("score", { detail: { 
@@ -425,7 +426,7 @@ class BoloGame extends EventTarget {
 		
 		//Kick off AI turn if it should go first.
 		if (this.#currentTeam === 1 && BoloGame.opponents.computer === opponent) {
-			await this.#sleep(2000)
+			await this.#sleep(500)
 			await this.#aiTurn()
 		}
 	}
@@ -582,6 +583,8 @@ class BoloGame extends EventTarget {
 	}
 	
 	async #bowl() {
+		const scoreDelay = 750 //applied after bowling
+		
 		const board = this.#board
 		const drawBoard = ([x,y])=>{
 			this.#drawBoard(this.#board, [x+0,y+0]); if (y >= 2) //don't over-draw the balls in the rack
@@ -622,6 +625,8 @@ class BoloGame extends EventTarget {
 			this.#board[ballPos].state.score = score
 			drawBoard(ballPos)
 		}
+		
+		await sleep(scoreDelay)
 		
 		let possibleMoves, possibleMove
 		
@@ -707,6 +712,8 @@ class BoloGame extends EventTarget {
 					this.#board[ballPos].state.score = score
 					drawBoard(ballPos)
 				}
+				
+				await sleep(scoreDelay)
 			}
 		}
 		
@@ -772,6 +779,7 @@ class BoloGame extends EventTarget {
 	async #runBowl({board, drawBoard, drawBall, focus, sleep, team}, ballPos) {
 		const ballPause = 250
 		const ballTeleportPause = 400
+		const endPause = 750
 		const ballSpeed = 150
 		
 		const maxTeleports = 5
@@ -881,7 +889,7 @@ class BoloGame extends EventTarget {
 	
 	/// Animate the ball rolling off to the side.
 	async #animateWin(ballPos, team) {
-		const ballWinSpeed = 30
+		const ballWinSpeed = 25
 		const ballPause = 250
 		
 		for (
@@ -947,7 +955,7 @@ class BoloGame extends EventTarget {
 	}
 	
 	async #aiTurn() {
-		const aiMoveSpeed = 100
+		const aiMoveSpeed = 50
 		const moves = this.#getPossibleMoves(this.#board, this.#playerBalls, this.#currentTeam)
 		const aiTargetColumn = moves[Math.floor(Math.random() * moves.length)]
 		
