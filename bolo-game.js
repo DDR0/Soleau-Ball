@@ -93,25 +93,46 @@ customElements.define('bolo-game', class BoloGameElement extends HTMLElement {
 		this.#game.addEventListener('movement', ({detail: {x, y}}) => {
 			const view = $(`[playfield]`)
 			
-			const gameSize = { width: view.scrollWidth, height: view.scrollHeight }
-			const viewSize = { width: view.clientWidth, height: view.clientHeight }
+			const viewSize = { 
+				width: view.clientWidth,
+				height: view.clientHeight,
+			}
+			const scrollSize = { 
+				width: view.scrollWidth - view.clientWidth,
+				height: view.scrollHeight - view.clientHeight,
+			}
 			
 			const canScroll = false
-				|| gameSize.width > view.clientWidth
-				|| gameSize.height > view.clientHeight
+				|| scrollSize.width > 0
+				|| scrollSize.height > 0
 			if (!canScroll) return
 			
 			const viewMidpoint = { x: viewSize.width/2, y: viewSize.height/2 }
 			const canvasStyle = getComputedStyle($(`canvas`))
 			const scrollTarget = {
-				x: x + parseFloat(canvasStyle.borderLeftWidth), 
-				y: y + parseFloat(canvasStyle.borderTopWidth),
+				x: constrain(
+					0,
+					x - viewMidpoint.x + parseFloat(canvasStyle.borderLeftWidth),
+					scrollSize.width
+				),
+				y: constrain(
+					0,
+					y - viewMidpoint.y + parseFloat(canvasStyle.borderTopWidth),
+					scrollSize.height
+				),
+			}
+			
+			const delta = {
+				x: scrollTarget.x - view.scrollLeft,
+				y: scrollTarget.y - view.scrollTop,
 			}
 			
 			view.scrollTo({
-				top: scrollTarget.y - viewMidpoint.y,
-				left: scrollTarget.x - viewMidpoint.x,
-				behavior: "smooth",
+				top: scrollTarget.y, 
+				left: scrollTarget.x,
+				behavior: Math.abs(delta.x) + Math.abs(delta.y) >= BoloGame.tileSize * 2
+					? "smooth"
+					: "instant"
 			})
 		})
 		
@@ -534,7 +555,7 @@ class BoloGame extends EventTarget {
 			this.#movePlayer(this.#currentTeam, this.#playerColumn+delta)
 			break
 		case 'moveTo':
-			this.#movePlayer(this.#currentTeam, column)
+			this.#movePlayer(this.#currentTeam, column, false)
 			break
 		case 'bowl':
 			this.#bowl()

@@ -65,6 +65,7 @@
 	    align-items: stretch;
 	    
 		overflow: auto; /* Scroll playfield if needed. */
+		overscroll-behavior: contain; /* Disable mobile browser pull-to-refresh when panning playfield. */
 		
 		canvas {
 			margin: auto;
