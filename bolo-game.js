@@ -1053,11 +1053,7 @@ class Cell {
 		
 		else {
 			if (Cell.types.teleport === this.type) {
-				const tiles = spritesheet[Cell.types.teleport]
-				const startFrame = Math.floor(this.variation*tiles.length)
-				const animFrame = Math.floor(performance.now() / animationFramerate)
-				const frame = (startFrame + animFrame) % tiles.length
-				ctx.drawImage(spritesheet.image, ...tiles[frame], ...defaultTarget)
+				ctx.drawImage(spritesheet.image, ...spritesheet["teleport base hole"], ...defaultTarget)
 			}
 			
 			else if (Cell.types.bonus === this.type) {
@@ -1092,6 +1088,14 @@ class Cell {
 			
 			if (Cell.types.ball === this.type) {
 				drawBall(ctx, this.state.team, null, this.state.score)
+			}
+			
+			else if (Cell.types.teleport === this.type) {
+				const tiles = spritesheet[Cell.types.teleport]
+				const startFrame = Math.floor(this.variation*tiles.length)
+				const animFrame = Math.floor(performance.now() / animationFramerate)
+				const frame = (startFrame + animFrame) % tiles.length
+				ctx.drawImage(spritesheet.image, ...tiles[frame], ...defaultTarget)
 			}
 		}
 		
@@ -1137,9 +1141,9 @@ const spritesheet = Object.freeze({
 	
 	[Cell.types.bonus]: [80,144,16,16],
 	
-	[Cell.types.teleport]: Array.from({length:8}, (_, i) =>
-		[80+16*i,176,16,16]
-	),
+	[Cell.types.teleport]: Array.from({length:8}, (_,i)=>[80+16*i,176,16,16]),
+	
+	"teleport base hole": [224, 176, 16, 16],
 	
 	[Cell.types.path]: [
 		[80,208,16,16],
