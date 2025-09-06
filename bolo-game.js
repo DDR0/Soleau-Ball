@@ -1,6 +1,6 @@
 const animationFramerate = 1000/4
 const debug = Object.freeze({
-	paint: !!1,
+	paint: !!0,
 })
 
 const resources = Object.freeze(new Map([
