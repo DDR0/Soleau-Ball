@@ -1,5 +1,8 @@
+export {}
+
 const animationFramerate = 1000/4
 const debug = Object.freeze({
+	__proto__: null,
 	paint: !!0,
 })
 
