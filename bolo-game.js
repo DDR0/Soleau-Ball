@@ -401,6 +401,7 @@ class BoloGame extends EventTarget {
 		ctx.font = "bold 80px sans-serif";
 		ctx.textAlign = "center"
 		ctx.textBaseline = "middle"
+		ctx.fillStyle = "#a99f8c"
 		ctx.fillRect(0, 0, canvas.width, canvas.height)
 		ctx.imageSmoothingEnabled = false;
 		
