@@ -89,6 +89,32 @@ customElements.define('bolo-game', class BoloGameElement extends HTMLElement {
 			$(`[current-round]`).textContent = `${number}/${of}`
 		})
 		
+		//Scroll the field of view onto the ball.
+		this.#game.addEventListener('movement', ({detail: {x, y}}) => {
+			const view = $(`[playfield]`)
+			
+			const gameSize = { width: view.scrollWidth, height: view.scrollHeight }
+			const viewSize = { width: view.clientWidth, height: view.clientHeight }
+			
+			const canScroll = false
+				|| gameSize.width > view.clientWidth
+				|| gameSize.height > view.clientHeight
+			if (!canScroll) return
+			
+			const viewMidpoint = { x: viewSize.width/2, y: viewSize.height/2 }
+			const canvasStyle = getComputedStyle($(`canvas`))
+			const scrollTarget = {
+				x: x + parseFloat(canvasStyle.borderLeftWidth), 
+				y: y + parseFloat(canvasStyle.borderTopWidth),
+			}
+			
+			view.scrollTo({
+				top: scrollTarget.y - viewMidpoint.y,
+				left: scrollTarget.x - viewMidpoint.x,
+				behavior: "smooth",
+			})
+		})
+		
 		const setupGame = ()=>this.#game.setup({
 			opponent: parseInt($(`[opponent]`).value, 10) 
 				? BoloGame.opponents.human 
@@ -355,7 +381,7 @@ class BoloGame extends EventTarget {
 		
 		this.#drawFullBoard(this.#board);
 		this.#drawBalls(this.#playerBalls, this.#currentTeam)
-		this.#drawPlayer(this.#playerColumn, this.#currentTeam)
+		this.#movePlayer(this.#currentTeam, this.#playerColumn)
 		
 		for (const pos of this.#board.getTeleporterTiles()) {
 			this.#repeat(animationFramerate, function*() {
@@ -454,36 +480,47 @@ class BoloGame extends EventTarget {
 		})
 	}
 	
-	#drawPlayer(col, team) {
-		if (this.#round > this.#rounds) return //Don't draw anyone post-game.
-		
-		for (const y of [-1, 0, 1])
-			this.#drawBoard(this.#board, [col+y, 0])
-		
-		const ctx = this.#canvas.getContext('2d')
-		
-		ctx.save()
-		ctx.translate(col * BoloGame.tileSize, 0) //Always on row 0.
-		ctx.scale(BoloGame.tileSize / 100, BoloGame.tileSize / 100)
-		ctx.translate(0, -10)
-		ctx.fillStyle = "lightgrey"
-		ctx.fillRect(10, 30, 80, 40)
-		ctx.fillStyle = team ? "orangered" : "blue"
-		ctx.beginPath()
-		ctx.arc(50, 70, 20, 0, 2*Math.PI)
-		ctx.fill()
-		ctx.beginPath()
-		ctx.arc(50, 50, 25, 0, 2*Math.PI)
-		ctx.fill()
-		ctx.strokeStyle = "#000A"
-		ctx.strokeWidth = 5
-		ctx.stroke()
-		ctx.restore()
+	#focusOnTile([x,y]) {
+		x = x*BoloGame.tileSize + BoloGame.tileSize/2
+		y = y*BoloGame.tileSize + BoloGame.tileSize/2
+		this.dispatchEvent(new CustomEvent("movement", { detail: {x,y} }))
 	}
 	
-	#clearPlayer(col) {
-		for (const y of [-1, 0, 1])
-			this.#drawBoard(this.#board, [col+y, 0])
+	#movePlayer(team, targetColumn, focus=true) {
+		if (this.#round > this.#rounds) return //Don't draw anyone post-game.
+		
+		this.#drawBoard(this.#board, [this.#playerColumn, 0])
+		
+		const columns = this.#playerBalls[team].length - 1
+		this.#playerColumn = constrain(0, targetColumn, columns)
+		
+		drawPlayer(this.#canvas.getContext('2d'), this.#playerColumn, team)
+		
+		if (focus) this.#focusOnTile([this.#playerColumn, 0])
+		
+		function drawPlayer(ctx, col, team) {
+			ctx.save()
+			ctx.translate(col * BoloGame.tileSize, 0) //Always on row 0.
+			ctx.scale(BoloGame.tileSize / 100, BoloGame.tileSize / 100)
+			ctx.translate(0, -10)
+			ctx.fillStyle = "lightgrey"
+			ctx.fillRect(10, 30, 80, 40)
+			ctx.fillStyle = team ? "orangered" : "blue"
+			ctx.beginPath()
+			ctx.arc(50, 70, 20, 0, 2*Math.PI)
+			ctx.fill()
+			ctx.beginPath()
+			ctx.arc(50, 50, 25, 0, 2*Math.PI)
+			ctx.fill()
+			ctx.strokeStyle = "#000A"
+			ctx.strokeWidth = 5
+			ctx.stroke()
+			ctx.restore()
+		}
+	}
+	
+	#clearPlayer(col=this.#playerColumn) {
+		this.#drawBoard(this.#board, [col, 0])
 	}
 	
 	#handleInput({detail: {command, other, column}}) {
@@ -494,21 +531,17 @@ class BoloGame extends EventTarget {
 		case 'left':
 		case 'right':
 			const delta = (command[0]==='r')*2-1
-			const columns = this.#playerBalls[this.#currentTeam].length - 1
-			this.#playerColumn = constrain(0, this.#playerColumn+delta, columns)
-			this.#drawPlayer(this.#playerColumn, this.#currentTeam)
-			break;
+			this.#movePlayer(this.#currentTeam, this.#playerColumn+delta)
+			break
 		case 'moveTo':
-			this.#clearPlayer(this.#playerColumn)
-			this.#playerColumn = column
-			this.#drawPlayer(this.#playerColumn, this.#currentTeam)
-			break;
+			this.#movePlayer(this.#currentTeam, column)
+			break
 		case 'bowl':
 			this.#bowl()
-			break;
+			break
 		case 'look':
 			this.#drawBalls(this.#playerBalls, this.#currentTeam ^ other)
-			break;
+			break
 		default:
 			console.error({command, diagnostic: "unknown command"})
 		}
@@ -539,11 +572,12 @@ class BoloGame extends EventTarget {
 		this.#isBowling = true
 		
 		ballPos = await this.#runBowl({
-			board, 
-			drawBoard, 
-			drawBall: drawBall.bind(null, this.#canvas, this.#currentTeam), 
-			sleep, 
-			team:this.#currentTeam,
+			board,
+			drawBoard,
+			drawBall: drawBall.bind(null, this.#canvas, this.#currentTeam),
+			focus: this.#focusOnTile.bind(this),
+			sleep,
+			team: this.#currentTeam,
 		}, ballPos)
 		
 		if (ballPos[1] === board.height-1) { //zero-indexed
@@ -555,16 +589,15 @@ class BoloGame extends EventTarget {
 			drawBoard(ballPos)
 		}
 		
-		let possibleMoves
+		let possibleMoves, possibleMove
 		
-		this.#clearPlayer(this.#playerColumn)
 		this.#currentTeam = +!this.#currentTeam
 		if (this.#currentTeam === this.#startingTeam) ++this.#turn
 		possibleMoves = this.#getPossibleMoves(board, this.#playerBalls, this.#currentTeam)
-		this.#playerColumn = possibleMoves.length //Auto-select the first column with a move.
+		possibleMove = possibleMoves.length //Auto-select the first column with a move.
 			? possibleMoves.slice(-this.#currentTeam)[0]
 			: this.#currentTeam * (this.#playerBalls[this.#currentTeam].length - 1)
-		this.#drawPlayer(this.#playerColumn, this.#currentTeam)
+		this.#movePlayer(this.#currentTeam, possibleMove)
 		this.#drawBalls(this.#playerBalls, this.#currentTeam)
 		
 		//If the next player can play, wait for input.
@@ -579,14 +612,13 @@ class BoloGame extends EventTarget {
 		alert(`No moves possible for ${this.#currentTeam ? "red" : "blue"}.`)
 		
 		//Otherwise, return input to the previous player to play out their hand.
-		this.#clearPlayer(this.#playerColumn)
 		this.#currentTeam = +!this.#currentTeam
 		if (this.#currentTeam === this.#startingTeam) ++this.#turn
 		possibleMoves = this.#getPossibleMoves(board, this.#playerBalls, this.#currentTeam)
-		this.#playerColumn = possibleMoves.length //Auto-select the first column with a move.
+		possibleMove = possibleMoves.length //Auto-select the first column with a move.
 			? possibleMoves.slice(-this.#currentTeam)[0]
 			: this.#currentTeam * (this.#playerBalls[this.#currentTeam].length - 1)
-		this.#drawPlayer(this.#playerColumn, this.#currentTeam)
+		this.#movePlayer(this.#currentTeam, possibleMove)
 		this.#drawBalls(this.#playerBalls, this.#currentTeam)
 		
 		if (this.#getPossibleMoves(board, this.#playerBalls, this.#currentTeam).length) {
@@ -624,16 +656,14 @@ class BoloGame extends EventTarget {
 				const ballTeam = tile.state.team
 				tile.type = Cell.types.empty
 				
-				ballPos = await this.#runBowl(
-					{
-						board, 
-						drawBoard, 
-						drawBall: drawBall.bind(null, this.#canvas, ballTeam), 
-						sleep, 
-						team: ballTeam
-					},
-					[x,y]
-				)
+				ballPos = await this.#runBowl({
+					board,
+					drawBoard,
+					drawBall: drawBall.bind(null, this.#canvas, ballTeam),
+					focus: this.#focusOnTile.bind(this),
+					sleep,
+					team: ballTeam,
+				}, [x,y])
 				
 				if (ballPos[1] === board.height-1) { //zero-indexed
 					await this.#animateWin(ballPos, ballTeam)
@@ -694,9 +724,7 @@ class BoloGame extends EventTarget {
 		this.#playerBalls[1].fill(true)
 		
 		this.#currentTeam = +!this.#currentTeam
-		this.#playerColumn = this.#currentTeam * (this.#playerBalls[this.#currentTeam].length - 1)
-		
-		this.#drawPlayer(this.#playerColumn, this.#currentTeam)
+		this.#movePlayer(this.#currentTeam, this.#currentTeam * (this.#playerBalls[this.#currentTeam].length - 1))
 		this.#drawBalls(this.#playerBalls, this.#currentTeam)
 		
 		this.#isBowling = false
@@ -707,7 +735,7 @@ class BoloGame extends EventTarget {
 		}
 	}
 	
-	async #runBowl({board, drawBoard, drawBall, sleep, team}, ballPos) {
+	async #runBowl({board, drawBoard, drawBall, focus, sleep, team}, ballPos) {
 		const ballPause = 250
 		const ballTeleportPause = 400
 		const ballSpeed = 150
@@ -731,7 +759,7 @@ class BoloGame extends EventTarget {
 					? [...targets][Math.floor(Math.random() * targets.size)]
 					: ballPos
 				ballPos = (++teleports <= maxTeleports) ? target : ballPos
-				drawBall(target)
+				drawBall(target), focus(target)
 				await sleep(ballTeleportPause)
 				
 				//There's something below us… try moving out of the way.
@@ -747,7 +775,7 @@ class BoloGame extends EventTarget {
 						momentum = randomFreeAdjacentTile.pos[0] -  ballPos[0]
 						drawBoard(ballPos)
 						ballPos = randomFreeAdjacentTile.pos
-						drawBall(ballPos)
+						drawBall(ballPos), focus(ballPos)
 						await this.#checkBonusCell(randomFreeAdjacentTile.tile, this.#playerScore, team)
 						await sleep(ballSpeed)
 					} else {
@@ -766,7 +794,7 @@ class BoloGame extends EventTarget {
 			if (Cell.floorTileTypes.has(downCell.type)) {
 				drawBoard(ballPos)
 				ballPos = downPos
-				drawBall(ballPos)
+				drawBall(ballPos), focus(ballPos)
 				await this.#checkBonusCell(downCell, this.#playerScore, team)
 				await sleep(ballSpeed)
 				continue
@@ -800,7 +828,7 @@ class BoloGame extends EventTarget {
 				if (Cell.floorTileTypes.has(nCell?.type)) {
 					drawBoard(ballPos)
 					ballPos = nPos
-					drawBall(ballPos)
+					drawBall(ballPos), focus(ballPos)
 					await this.#checkBonusCell(nCell, this.#playerScore, team)
 					await sleep(ballSpeed)
 					continue
@@ -830,6 +858,7 @@ class BoloGame extends EventTarget {
 			this.#drawBoard(this.#board, ballPos)
 			ballPos = ballPos.with(0, col)
 			drawBall(this.#canvas, team, ballPos, (ballPos[1]*2)+24)
+			this.#focusOnTile(ballPos)
 			
 			await this.#sleep(ballWinSpeed)
 		}
@@ -888,13 +917,11 @@ class BoloGame extends EventTarget {
 		const moves = this.#getPossibleMoves(this.#board, this.#playerBalls, this.#currentTeam)
 		const aiTargetColumn = moves[Math.floor(Math.random() * moves.length)]
 		
-		let c = this.#playerColumn;
-		do {	
-			c += Math.sign(aiTargetColumn - this.#playerColumn)
-			this.#drawPlayer(c, this.#currentTeam)
+		do {
+			const closer = Math.sign(aiTargetColumn - this.#playerColumn)
+			this.#movePlayer(this.#currentTeam, this.#playerColumn+closer)
 			await this.#sleep(aiMoveSpeed)
-		} while (c != aiTargetColumn)
-		this.#playerColumn = c
+		} while (this.#playerColumn != aiTargetColumn)
 		
 		await this.#sleep(500)
 		this.#bowl()
@@ -1148,7 +1175,13 @@ const spritesheet = Object.freeze({
 	[Cell.types.path]: [
 		[80,208,16,16],
 		[96,208,16,16],
-	]
+	],
+	
+	font: {
+		white:  Array.from({length:10}, (_,i)=>[176+8*i,32,7,9]),
+		black:  Array.from({length:10}, (_,i)=>[176+8*i,42,7,9]),
+		yellow: Array.from({length:10}, (_,i)=>[176+8*i,52,7,9]),
+	}
 })
 
 const defaultTarget = Object.freeze([0,0,100,100])
