@@ -3,9 +3,41 @@ const debug = Object.freeze({
 	paint: !!0,
 })
 
+const audio = (()=>{
+	const context = new AudioContext()
+	const mainVolume = new GainNode(context, { channelCount: 2, })
+	mainVolume.connect(context.destination)
+	return Object.freeze({
+		context,
+		mainVolume,
+		soundEffectOutput: mainVolume,
+		buffer: new AudioBuffer({
+		  numberOfChannels: 2,
+		  length: 22050,
+		  sampleRate: 44100,
+		}),
+		
+		//a tenth of a second of silence
+		silenceBuffer: context.createBuffer(
+			1, 
+			0.1 * context.sampleRate,
+			context.sampleRate
+		),
+	})
+})()
+console.info(audio)
+
 const resources = Object.freeze(new Map([
 	['game html', fetch('./bolo-game.html').then(response => response.text())],
 	['spritesheet', fetch('./spritesheet.png').then(response => response.blob())],
+	...[
+		['complete', './complete.wav'],
+		['bounce', './bounce.wav'],
+		['bonus', './bonus.wav'],
+		['tonk', './tonk.wav'],
+		['teleport', './teleport.wav'],
+		['roll', './roll.wav'],
+	].map(args => loadSoundEffect(...args)),
 ]))
 
 resources.set('spritesheet', 
@@ -45,8 +77,8 @@ customElements.define('bolo-game', class BoloGameElement extends HTMLElement {
 		
 		const fullscreen = $(`[fullscreen]`)
 		if (!document.fullscreenEnabled) {
-			console.info('Fullscreen not available.')
-			fullscreen.parentNode.remove()
+			fullscreen.setAttribute('disabled', '')
+			fullscreen.parentNode.setAttribute('title', 'Fullscreen is not enabled in this browser.')
 		} else {
 			document.addEventListener('fullscreenchange', evt => {
 				fullscreen.checked = !!document.fullscreenElement
@@ -56,6 +88,20 @@ customElements.define('bolo-game', class BoloGameElement extends HTMLElement {
 				evt.target.checked ? this.requestFullscreen() : document.exitFullscreen()
 			})
 		}
+		
+		const sounds = $(`[sounds]`)
+		if (+localStorage.muteSounds) {
+			sounds.checked = false;
+			audio.mainVolume.gain.value = 0;
+		}
+		sounds.addEventListener('change', ({target}) => {
+			localStorage.muteSounds = +!target.checked;
+			audio.mainVolume.gain.value = +target.checked;
+			audio.mainVolume.gain.setValueAtTime(
+				+target.checked, 
+				audio.context.currentTime + 0.2
+			)
+		})
 		
 		
 		for (const btn of $$(`button[nav]`))
@@ -279,6 +325,8 @@ customElements.define('bolo-game', class BoloGameElement extends HTMLElement {
 		document.addEventListener('keydown', this.#keyDownHandler)
 		document.addEventListener('keyup', this.#keyUpHandler)
 		
+		connectAudioStarters(this.$$)
+		
 		Object.freeze(this)
 	}
 	
@@ -286,6 +334,9 @@ customElements.define('bolo-game', class BoloGameElement extends HTMLElement {
 		removeEventListener('hashchange', this.#syncHashToScreen)
 		document.removeEventListener('keydown', this.#keyDownHandler);
 		document.removeEventListener('keyup', this.#keyUpHandler)
+		
+		disconnectAudioStarters()
+		
 		this.#game.teardown()
 	}
 })
@@ -803,6 +854,7 @@ class BoloGame extends EventTarget {
 					: ballPos
 				ballPos = (++teleports <= maxTeleports) ? target : ballPos
 				drawBall(target), focus(target)
+				this.#play('teleport', ...target)
 				await sleep(ballTeleportPause)
 				
 				//There's something below us… try moving out of the way.
@@ -819,7 +871,11 @@ class BoloGame extends EventTarget {
 						drawBoard(ballPos)
 						ballPos = randomFreeAdjacentTile.pos
 						drawBall(ballPos), focus(ballPos)
-						await this.#checkBonusCell(randomFreeAdjacentTile.tile, this.#playerScore, team)
+						this.#play('roll', ...ballPos)
+						if (this.#checkBonusCell(downCell, this.#playerScore, team)) {
+							this.#play('bonus', ...ballPos)
+							await this.#sleep(250)
+						}
 						await sleep(ballSpeed)
 					} else {
 						const tile = board[ballPos]
@@ -838,7 +894,11 @@ class BoloGame extends EventTarget {
 				drawBoard(ballPos)
 				ballPos = downPos
 				drawBall(ballPos), focus(ballPos)
-				await this.#checkBonusCell(downCell, this.#playerScore, team)
+				this.#play('roll', ...ballPos)
+				if (this.#checkBonusCell(downCell, this.#playerScore, team)) {
+					this.#play('bonus', ...ballPos)
+					await this.#sleep(250)
+				}
 				await sleep(ballSpeed)
 				continue
 			}
@@ -863,8 +923,11 @@ class BoloGame extends EventTarget {
 					}
 					
 					momentum = nPos[0] - ballPos[0]
+					//this.#play('bounce', ...ballPos) TODO: Find better "flip" sound.
 				} else if (onBall && momentum) {
 					nPos = ballPos.with(0,ballPos[0]+momentum)
+				} else {
+					this.#play('tonk', ...ballPos)
 				}
 				
 				const nCell = board[nPos]
@@ -872,7 +935,11 @@ class BoloGame extends EventTarget {
 					drawBoard(ballPos)
 					ballPos = nPos
 					drawBall(ballPos), focus(ballPos)
-					await this.#checkBonusCell(nCell, this.#playerScore, team)
+					this.#play('roll', ...nPos)
+					if (this.#checkBonusCell(nCell, this.#playerScore, team)) {
+						this.#play('bonus', ...ballPos)
+						await this.#sleep(250)
+					}
 					await sleep(ballSpeed)
 					continue
 				}
@@ -902,11 +969,13 @@ class BoloGame extends EventTarget {
 			ballPos = ballPos.with(0, col)
 			drawBall(this.#canvas, team, ballPos, (ballPos[1]*2)+24)
 			this.#focusOnTile(ballPos)
+			this.#play('roll', ...ballPos)
 			
 			await this.#sleep(ballWinSpeed)
 		}
 		
 		this.#playerScore[team] += (ballPos[1]*2)+24 //equals 60 at the default height
+		this.#play('complete', ...ballPos)
 		
 		await this.#sleep(ballPause)
 		this.#drawBoard(this.#board, ballPos)
@@ -914,11 +983,11 @@ class BoloGame extends EventTarget {
 	}
 	
 	
-	async #checkBonusCell(cell, scoreboard, team) {
-		if (Cell.types.bonus !== cell.type) return
-		await this.#sleep(250)
+	#checkBonusCell(cell, scoreboard, team) {
+		if (Cell.types.bonus !== cell.type) return false
 		scoreboard[team] += cell.state.score
 		cell.type = Cell.types.empty
+		return true
 	}
 	
 	
@@ -968,6 +1037,15 @@ class BoloGame extends EventTarget {
 		
 		await this.#sleep(500)
 		this.#bowl()
+	}
+	
+	async #play(sound, x, y) {
+		const container = this.#canvas.parentElement
+		const camX = (Math.min(this.#canvas.clientWidth, container.clientWidth) / 2) + container.scrollLeft
+		const camY = (Math.min(this.#canvas.clientHeight, container.clientHeight) / 2) + container.scrollTop
+		const srcX = x * BoloGame.tileSize + (BoloGame.tileSize / 2)
+		const srcY = y * BoloGame.tileSize + (BoloGame.tileSize / 2)
+		return (await resources.get(sound)).play(srcX - camX, srcY - camY)
 	}
 }
 
@@ -1252,8 +1330,10 @@ function drawBall(canvas, team, pos, text="") { //canvas is canvas *context* if 
 	if (text) {
 		const measurements = ctx.measureText(text)
 		const heightOffset = (measurements.actualBoundingBoxDescent - measurements.actualBoundingBoxAscent) / 2
+		ctx.font = "bold 40pt sans-serif"
+		ctx.fillStyle = "#FFF7"
+		ctx.fillText(text, 53, 53 - heightOffset, 80)
 		ctx.fillStyle = "black"
-		ctx.font = "normal 40pt sans-serif"
 		ctx.fillText(text, 50, 50 - heightOffset, 80)
 	}
 	
@@ -1266,3 +1346,98 @@ function constrain(min, val, max) {
 	if (max < min) return (max + min)/2 
 	return Math.min(Math.max(val, min), max)
 }
+
+
+function loadSoundEffect(name, path) {
+	return [name, (async ()=>{
+		let buffer = audio.silenceBuffer
+		try {
+			const response = await fetch(path)
+			const bytes = await response.arrayBuffer() //uint8 values
+			buffer = await audio.context.decodeAudioData(bytes) //float32 values
+		} catch (error) {
+			console.error('audio buffer loading error', error)
+		}
+		
+		return {
+			play: (x,y) => {
+				if (audio.context.state !== 'running') return; //Or else all the sounds get queued up and played at once.
+				
+				const panNode = new PannerNode(audio.context, {
+					panningModel: 'HRTF',
+				})
+				panNode.refDistance = 500
+				panNode.positionX.value = x
+				panNode.positionY.value = y
+				panNode.positionZ.value = 750
+				panNode.connect(audio.soundEffectOutput)
+				
+				const audioNode = new AudioBufferSourceNode(audio.context, {
+					buffer,
+				})
+				audioNode.connect(panNode)
+				audioNode.start()
+			},
+		}
+	})()]
+}
+
+
+audio.context.addEventListener('statechange', ({target: context}) => {
+	console.log('audio state change event', context.state)
+	
+	if (context.state === 'interrupted') {
+		context.resume();
+	}
+})
+
+
+const [connectAudioStarters, disconnectAudioStarters] = (()=>{
+	const targetSelector = `button, canvas`
+	const events = ['click', 'pointerdown']
+	
+	let targets = []
+	
+	async function startAudio(evt) {
+		if (!['interrupted', 'suspended'].includes(audio.context.state)) {
+			console.warn(`Did not start audio, context was previously ${audio.context.state}.`)
+			return disconnect() //Can't resume a 'closed' state; no need to resume a 'running' state.
+		}
+			
+		try {
+			await audio.context.resume()
+		} catch (err) {
+			return console.error("could not start audio", err, 'in', evt)
+		}
+		
+		disconnect()
+	}
+	
+	function connect($$) {
+		disconnect()
+		
+		targets = $$(targetSelector)
+		
+		for (const target of targets) {
+			for (const event of events) {
+				target.addEventListener(event, startAudio)
+			}
+		}
+		
+		document.addEventListener('keydown', startAudio)
+	}
+	
+	function disconnect() {
+		for (const target of targets) {
+			for (const event of events) {
+				target.removeEventListener(event, startAudio)
+			}
+		}
+		
+		targets = []
+		
+		document.removeEventListener('keydown', startAudio)
+	}
+	
+	return [connect, disconnect]
+})()
