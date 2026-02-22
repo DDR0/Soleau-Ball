@@ -88,6 +88,14 @@
 			}
 		}
 	}
+	
+	a {
+		transition: color linear 40ms;
+		color: #5fabee;
+		&:visited { color: #278fea; }
+		&:hover { color: #87bae8; }
+		&:active { color: #3e7eb7; }
+	}
 }
 
 @layer theme-dark {
