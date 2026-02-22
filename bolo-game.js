@@ -25,7 +25,7 @@ const audio = (()=>{
 		),
 	})
 })()
-console.info(audio)
+
 
 const resources = Object.freeze(new Map([
 	['game html', fetch('./bolo-game.html').then(response => response.text())],
@@ -91,12 +91,12 @@ customElements.define('bolo-game', class BoloGameElement extends HTMLElement {
 		
 		const sounds = $(`[sounds]`)
 		if (+localStorage.muteSounds) {
-			sounds.checked = false;
-			audio.mainVolume.gain.value = 0;
+			sounds.checked = false
+			audio.mainVolume.gain.value = 0
 		}
 		sounds.addEventListener('change', ({target}) => {
-			localStorage.muteSounds = +!target.checked;
-			audio.mainVolume.gain.value = +target.checked;
+			localStorage.muteSounds = +!target.checked
+			audio.mainVolume.gain.value = +target.checked
 			audio.mainVolume.gain.setValueAtTime(
 				+target.checked, 
 				audio.context.currentTime + 0.2
@@ -199,8 +199,8 @@ customElements.define('bolo-game', class BoloGameElement extends HTMLElement {
 			location.hash = "game"
 		})
 		
-		let moveTimeoutHandle = 0;
-		['left', 'right', 'bowl'].forEach(move => {
+		let moveTimeoutHandle = 0
+		;['left', 'right', 'bowl'].forEach(move => {
 			const button = $(`[move="${move}"]`)
 			
 			button.addEventListener('pointerdown', evt => {
@@ -270,7 +270,7 @@ customElements.define('bolo-game', class BoloGameElement extends HTMLElement {
 		canvas.addEventListener('pointerup', mousePositionBowler)
 		
 		canvas.addEventListener('pointerup', ({offsetX:x, which}) => {
-			if (which !== 1) return; //left-mouse-button-only, not middle, not a tap
+			if (which !== 1) return //left-mouse-button-only, not middle, not a tap
 			
 			this.#game.dispatchEvent(
 				new CustomEvent("input", { detail: { 
@@ -332,7 +332,7 @@ customElements.define('bolo-game', class BoloGameElement extends HTMLElement {
 	
 	disconnectedCallback() {
 		removeEventListener('hashchange', this.#syncHashToScreen)
-		document.removeEventListener('keydown', this.#keyDownHandler);
+		document.removeEventListener('keydown', this.#keyDownHandler)
 		document.removeEventListener('keyup', this.#keyUpHandler)
 		
 		disconnectAudioStarters()
@@ -364,7 +364,7 @@ class BoloGame extends EventTarget {
 		computer: Symbol('Computer Opponent'),
 	})
 	
-	static tileSize = 20; //zoom
+	static tileSize = 20 //zoom
 	
 	#opponent
 	#_turn
@@ -449,12 +449,12 @@ class BoloGame extends EventTarget {
 		//Now whatever we draw on it will be in constant-sized CSS pixels.
 		
 		//Set up some further defaults for the canvas.
-		ctx.font = "bold 80px sans-serif";
+		ctx.font = "bold 80px sans-serif"
 		ctx.textAlign = "center"
 		ctx.textBaseline = "middle"
 		ctx.fillStyle = "#a99f8c"
 		ctx.fillRect(0, 0, canvas.width, canvas.height)
-		ctx.imageSmoothingEnabled = false;
+		ctx.imageSmoothingEnabled = false
 		
 		//Generate playfield.
 		this.#board.generateMap()
@@ -466,7 +466,7 @@ class BoloGame extends EventTarget {
 		
 		this.#playerColumn = this.#currentTeam * (this.#playerBalls[this.#currentTeam].length - 1)
 		
-		this.#drawFullBoard(this.#board);
+		this.#drawFullBoard(this.#board)
 		this.#drawBalls(this.#playerBalls, this.#currentTeam)
 		this.#movePlayer(this.#currentTeam, this.#playerColumn)
 		
@@ -561,7 +561,7 @@ class BoloGame extends EventTarget {
 		ctx.fillRect(0, 0, 100 * this.#board.width, 100)
 		ctx.restore()
 		
-		const row = 1;
+		const row = 1
 		balls[team].forEach((ball, col) => {
 			if (ball) drawBall(this.#canvas, team, [col, 1])
 		})
@@ -881,7 +881,7 @@ class BoloGame extends EventTarget {
 						const tile = board[ballPos]
 						tile.type = Cell.types.ball
 						tile.state.team = team
-						break;
+						break
 					}
 					continue
 				} //else fallthrough to the downpos case.
@@ -1073,8 +1073,8 @@ class Board {
 				
 				const [x,y] = prop.split(',').map(c=>parseInt(c, 10))
 				
-				if (x < 0 || x >= width) return outOfBoundsCell;
-				if (y < 0 || y >= height) return outOfBoundsCell;
+				if (x < 0 || x >= width) return outOfBoundsCell
+				if (y < 0 || y >= height) return outOfBoundsCell
 				
 				let row = target[y]
 				if (!row) row = target[y] = []
@@ -1321,10 +1321,10 @@ function drawBall(canvas, team, pos, text="") { //canvas is canvas *context* if 
 	ctx.drawImage(spritesheet.image, ...spritesheet[Cell.types.ball][team], ...defaultTarget)
 	
 	if (debug.paint) {
-		ctx.beginPath();
-		ctx.arc(50, 50, 25, 0, 2 * Math.PI); //centerX, centerY, radius, startAngle, endAngle
+		ctx.beginPath()
+		ctx.arc(50, 50, 25, 0, 2 * Math.PI) //centerX, centerY, radius, startAngle, endAngle
 		ctx.fillStyle = `oklch(0.6685 0.2405 ${Math.random()*360} / 89.62%)`
-		ctx.fill();   // Optional: fills the circle
+		ctx.fill()   // Optional: fills the circle
 	}
 	
 	if (text) {
@@ -1361,7 +1361,7 @@ function loadSoundEffect(name, path) {
 		
 		return {
 			play: (x,y) => {
-				if (audio.context.state !== 'running') return; //Or else all the sounds get queued up and played at once.
+				if (audio.context.state !== 'running') return //Or else all the sounds get queued up and played at once.
 				
 				const panNode = new PannerNode(audio.context, {
 					panningModel: 'HRTF',
@@ -1384,10 +1384,8 @@ function loadSoundEffect(name, path) {
 
 
 audio.context.addEventListener('statechange', ({target: context}) => {
-	console.log('audio state change event', context.state)
-	
 	if (context.state === 'interrupted') {
-		context.resume();
+		context.resume()
 	}
 })
 
