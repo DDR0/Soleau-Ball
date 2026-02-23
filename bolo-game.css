@@ -1,7 +1,6 @@
 @layer layout, theme-dark, theme-override;
 
 @layer layout {
-	
 	/* Hide inactive screens. */
 	[screen]:not([active]) {
 		display: none;
@@ -23,6 +22,7 @@
 	#about, #setup {
 		align-items: stretch;
 		justify-content: space-between;
+		overflow: auto;
 		
 		[info], [options] {
 			max-width: fit-content;
