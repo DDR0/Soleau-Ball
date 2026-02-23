@@ -47,6 +47,7 @@ resources.set('spritesheet',
 	)
 )
 
+
 customElements.define('bolo-game', class BoloGameElement extends HTMLElement {
 	#syncHashToScreen
 	#game
@@ -61,9 +62,13 @@ customElements.define('bolo-game', class BoloGameElement extends HTMLElement {
 		this.$$ = this.shadow.querySelectorAll.bind(this.shadow)
 		
 		this.#syncHashToScreen = () => {
-			if (!location.hash || !this.$(location.hash)) location.hash = "game"
 			for (screen of this.$$(`[screen]`)) screen.removeAttribute('active')
-			this.$(location.hash)?.setAttribute('active', '')
+			try {
+				const selectedScreen = this.$(location.hash) ?? this.$('#game')
+				selectedScreen.setAttribute('active', '')
+			} catch (e) {
+				this.$('#game').setAttribute('active', '')
+			}
 		}
 	}
 	
