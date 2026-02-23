@@ -28,15 +28,15 @@ const audio = (()=>{
 
 
 const resources = Object.freeze(new Map([
-	['game html', fetch('./bolo-game.html').then(response => response.text())],
-	['spritesheet', fetch('./spritesheet.png').then(response => response.blob())],
+	['game html', fetch(new URL('bolo-game.html', import.meta.url)).then(response => response.text())],
+	['spritesheet', fetch(new URL('spritesheet.png', import.meta.url)).then(response => response.blob())],
 	...[
-		['complete', './complete.wav'],
-		['bounce', './bounce.wav'],
-		['bonus', './bonus.wav'],
-		['tonk', './tonk.wav'],
-		['teleport', './teleport.wav'],
-		['roll', './roll.wav'],
+		['complete', new URL('complete.wav', import.meta.url)],
+		['bounce', new URL('bounce.wav', import.meta.url)],
+		['bonus', new URL('bonus.wav', import.meta.url)],
+		['tonk', new URL('tonk.wav', import.meta.url)],
+		['teleport', new URL('teleport.wav', import.meta.url)],
+		['roll', new URL('roll.wav', import.meta.url)],
 	].map(args => loadSoundEffect(...args)),
 ]))
 
@@ -70,7 +70,8 @@ customElements.define('bolo-game', class BoloGameElement extends HTMLElement {
 	async connectedCallback () {
 		const {$,$$} = this
 		
-		this.shadow.innerHTML = (await resources.get('game html')) || `<h1 style="color:indianred">Error loading game resources.</h1>`
+		this.shadow.innerHTML = `<link rel=stylesheet href="${new URL('bolo-game.css', import.meta.url)}"/>\n\n`
+		this.shadow.innerHTML += (await resources.get('game html')) || `<h1 style="color:indianred">Error loading game resources.</h1>`
 		
 		addEventListener('hashchange', this.#syncHashToScreen)
 		dispatchEvent(new HashChangeEvent("hashchange")) //Activate a game screen.
